@@ -1,0 +1,15 @@
+.gcloudignore
+.git
+.gitignore
+*.pyc
+__pycache__/
+venv/
+.venv/
+env/
+*.egg-info/
+dist/
+build/
+.env
+*.log
+node_modules/
+service-account.json
