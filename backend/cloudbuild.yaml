@@ -1,0 +1,54 @@
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - build
+      - '-t'
+      - 'asia-south1-docker.pkg.dev/$PROJECT_ID/crisisgrid-backend/crisisgrid-backend:latest'
+      - '.'
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - push
+      - 'asia-south1-docker.pkg.dev/$PROJECT_ID/crisisgrid-backend/crisisgrid-backend:latest'
+
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - crisisgrid-backend
+      - '--image=asia-south1-docker.pkg.dev/$PROJECT_ID/crisisgrid-backend/crisisgrid-backend:latest'
+      - '--region=us-central1'
+      - '--platform=managed'
+      - '--allow-unauthenticated'
+      - '--memory=512Mi'
+      - '--max-instances=3'
+      - '--set-env-vars=GOOGLE_CLOUD_PROJECT=crisisgrid-494418,VERTEX_LOCATION=us-central1'
+      - '--set-secrets=GOOGLE_MAPS_API_KEY=GOOGLE_MAPS_API_KEY:latest'
+
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: bash
+    args:
+      - '-c'
+      - |
+        SERVICE_URL=$(gcloud run services describe crisisgrid-backend \
+          --region=us-central1 --format='value(status.url)')
+        gcloud scheduler jobs describe crisisgrid-dispatch-scheduler \
+          --location=us-central1 2>/dev/null && \
+        gcloud scheduler jobs update http crisisgrid-dispatch-scheduler \
+          --location=us-central1 \
+          --schedule="*/3 * * * *" \
+          --uri="$${SERVICE_URL}/scheduler/run-dispatch" \
+          --http-method=POST \
+          --message-body='{}' \
+          --time-zone="Asia/Kolkata" || \
+        gcloud scheduler jobs create http crisisgrid-dispatch-scheduler \
+          --location=us-central1 \
+          --schedule="*/3 * * * *" \
+          --uri="$${SERVICE_URL}/scheduler/run-dispatch" \
+          --http-method=POST \
+          --message-body='{}' \
+          --time-zone="Asia/Kolkata"
+
+images:
+  - 'asia-south1-docker.pkg.dev/$PROJECT_ID/crisisgrid-backend/crisisgrid-backend:latest'
